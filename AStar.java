@@ -34,7 +34,7 @@ public class AStar {
         PriorityQueue<SearchQueueItem> fringe = new PriorityQueue<>();
         Map<Stop, Edge> backpointers = new HashMap<>();
         Set<Stop> visited = new HashSet<>();
-        fringe.add(new SearchQueueItem(start, null, 0, start.distanceTo(goal)));
+        fringe.add(new SearchQueueItem(start, null, 0, start.distanceTo(goal), 0, start.distanceTo(goal)/Transport.TRAIN_SPEED_MPS));
         while (!fringe.isEmpty()) {
             SearchQueueItem curr = fringe.poll();
             if (!visited.contains(curr.getStop())) {
@@ -53,7 +53,15 @@ public class AStar {
                     if (!visited.contains(neighbour)) {
                         double lenToNeigh = curr.getTravelled() + edge.distance();
                         double estTotal = lenToNeigh + neighbour.distanceTo(goal);
-                        fringe.add(new SearchQueueItem(neighbour, edge, lenToNeigh, estTotal));
+                        double time;
+                        if (edge.transpType() == Transport.WALKING) {
+                            time = curr.getTime()+edge.distance()*Transport.WALKING_SPEED_MPS;
+                        }
+                        else {
+                            time = edge.line().getTimes().get(edge.line().getStops().indexOf(neighbour));
+                        }
+                        double estTotalTime = estTotal/Transport.TRAIN_SPEED_MPS;
+                        fringe.add(new SearchQueueItem(neighbour, edge, lenToNeigh, estTotal, time, estTotalTime));
                     }
                 }
             }

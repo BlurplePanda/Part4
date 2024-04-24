@@ -12,12 +12,16 @@ public class SearchQueueItem implements Comparable<SearchQueueItem> {
     private Edge edge;
     private double travelled;
     private double estTotal;
+    private double time;
+    private double estTotalTime;
 
-    public SearchQueueItem(Stop stop, Edge edge, double len, double est) {
+    public SearchQueueItem(Stop stop, Edge edge, double len, double est, double time, double estTotalTime) {
         this.stop = stop;
         this.edge = edge;
         this.travelled = len;
         this.estTotal = est;
+        this.time = time;
+        this.estTotalTime = estTotalTime;
     }
 
     public Stop getStop() {
@@ -36,9 +40,17 @@ public class SearchQueueItem implements Comparable<SearchQueueItem> {
         return estTotal;
     }
 
-    // stub needed for file to compile.
+    public double getTime() {
+        return time;
+    }
+
+    public double getEstTotalTime() {
+        return estTotalTime;
+    }
+
     public int compareTo(SearchQueueItem other) {
-        return Double.compare(estTotal, other.estTotal);
+        return this.estTotalTime == other.estTotalTime ? Double.compare(this.time, other.time) : Double.compare(this.estTotalTime, other.estTotalTime);
+        //return Double.compare(estTotal, other.estTotal);
     }
 
 
