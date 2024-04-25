@@ -1,3 +1,5 @@
+import java.time.temporal.ChronoUnit;
+
 /**
  * A directed edge in the graph, with associated data.
  * fromStop and toStop are the stops at the beginning and end of the edge
@@ -15,23 +17,29 @@ public class Edge {
     private final Stop toStop;
     
     private final String transpType; 
-    private final Line line; 
-
+    private final Trip trip;
+    private final double time; // in seconds
     private final double distance; // distance between the two stops of the edge
 
     private final String toString;   // compute the string representation just once.
     
-    public Edge(Stop fromStop, Stop toStop, String transpType, Line line, double distance){
+    public Edge(Stop fromStop, Stop toStop, String transpType, Trip trip, double distance){
         this.fromStop = fromStop;
         this.toStop = toStop;
         this.transpType = transpType;
-        this.line = line;
+        this.trip = trip;
         this.distance = distance;
+        if (transpType != Transport.WALKING) {
+            this.time = trip.getTimes().get(trip.getStops().indexOf(fromStop)).until(trip.getTimes().get(trip.getStops().indexOf(toStop)), ChronoUnit.SECONDS);
+        }
+        else {
+            this.time = this.distance/Transport.WALKING_SPEED_MPS;
+        }
         this.toString = "FROM " +
             fromStop.getName() + "(" + fromStop.getId()+")  TO "+
             toStop.getName() + "(" + toStop.getId()+")  BY "+transpType+
-            ((line!=null)?("(" + line.getId()+")"):"")+
-            "  " + ((int)distance)+"m";
+            ((trip!=null)?("(" + trip.getLine().getName()+")"):"")+
+            "  " + ((int)distance)+"m, "+String.format("%.2f",time/60)+"min";
     }
 
     // todo add getters and setters
@@ -39,8 +47,11 @@ public class Edge {
     public Stop fromStop() {return fromStop;}
     public Stop toStop() {return toStop;}
     public String transpType() {return transpType;}
-    public Line line() {return line;}
+    public Trip trip() {return trip;}
     public double distance() {return distance;}
+    public double time() {
+        return time;
+    }
 
     public String toString() {return this.toString;}
 

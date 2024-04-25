@@ -26,18 +26,18 @@ import java.util.HashSet;
 public class Graph {
 
     private Collection<Stop> stops;
-    private Collection<Line> lines;
+    private Collection<Trip> trips;
     private Collection<Edge> edges = new HashSet<Edge>();      // edges between Stops
 
     /**
      * Construct a new graph given a collection of stops and a collection of lines.
      * Remove any stops that are not on any lines since they cannot be accessed from anywhere.
      */
-    public Graph(Collection<Stop> stps, Collection<Line> lns) {
+    public Graph(Collection<Stop> stps, Collection<Trip> tps) {
         stops = new TreeSet<Stop>(stps);
-        stops.removeIf((Stop s) -> s.getLines().isEmpty());
+        stops.removeIf((Stop s) -> s.getTrips().isEmpty());
         
-        lines = lns;
+        trips = tps;
 
         createAndConnectEdges();
 
@@ -48,8 +48,8 @@ public class Graph {
     /** Print out the lines and stops in the graph to System.out */
     public void printGraphData(){
         System.out.println("============================\nLines:");
-        for (Line line : lines){
-            System.out.println(line.getId()+ "("+line.getStops().size()+" stops)");
+        for (Trip trip : trips){
+            System.out.println(trip.getId()+ "("+trip.getStops().size()+" stops)");
         }
         System.out.println("\n=============================\nStops:");
         for (Stop stop : stops){
@@ -71,14 +71,14 @@ public class Graph {
      * - Construct the forward neighbour edges of each Stop.
      */
     private void createAndConnectEdges() {
-        for (Line line : lines) {
+        for (Trip trip : trips) {
             // step through the adjacent pairs of stops in the line
-            String transpType =  line.getType();
-            for (int i = 0; i < line.getStops().size() - 1; i++) {
-                Stop from = line.getStops().get(i);
-                Stop to   = line.getStops().get(i+1);
+            String transpType =  trip.getLine().getType();
+            for (int i = 0; i < trip.getStops().size() - 1; i++) {
+                Stop from = trip.getStops().get(i);
+                Stop to   = trip.getStops().get(i+1);
                 double distance = from.distanceTo(to);
-                Edge edge = new Edge(from, to, transpType, line, distance);
+                Edge edge = new Edge(from, to, transpType, trip, distance);
                 from.addEdge(edge);
                 edges.add(edge);
             }
@@ -129,8 +129,8 @@ public class Graph {
     /**
      * Return a collection of all the lines in the network
      */        
-    public Collection<Line> getLines() {
-        return Collections.unmodifiableCollection(lines);
+    public Collection<Trip> getTrips() {
+        return Collections.unmodifiableCollection(trips);
     }
 
     /**

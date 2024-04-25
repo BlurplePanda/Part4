@@ -1,3 +1,5 @@
+import java.time.LocalTime;
+
 /**
  * AStar search uses a priority queue of partial paths
  * that the search is building.
@@ -12,16 +14,18 @@ public class SearchQueueItem implements Comparable<SearchQueueItem> {
     private Edge edge;
     private double travelled;
     private double estTotal;
-    private double time;
+    private double travelledTime;
     private double estTotalTime;
+    private LocalTime time;
 
-    public SearchQueueItem(Stop stop, Edge edge, double len, double est, double time, double estTotalTime) {
+    public SearchQueueItem(Stop stop, Edge edge, double len, double est, double travelledTime, double estTotalTime, LocalTime time) {
         this.stop = stop;
         this.edge = edge;
         this.travelled = len;
         this.estTotal = est;
-        this.time = time;
+        this.travelledTime = travelledTime;
         this.estTotalTime = estTotalTime;
+        this.time = time;
     }
 
     public Stop getStop() {
@@ -40,16 +44,20 @@ public class SearchQueueItem implements Comparable<SearchQueueItem> {
         return estTotal;
     }
 
-    public double getTime() {
-        return time;
+    public double getTravelledTime() {
+        return travelledTime;
     }
 
     public double getEstTotalTime() {
         return estTotalTime;
     }
 
+    public LocalTime getTime() {
+        return time;
+    }
+
     public int compareTo(SearchQueueItem other) {
-        return this.estTotalTime == other.estTotalTime ? Double.compare(this.time, other.time) : Double.compare(this.estTotalTime, other.estTotalTime);
+        return this.estTotalTime == other.estTotalTime ? Double.compare(this.travelledTime, other.travelledTime) : Double.compare(this.estTotalTime, other.estTotalTime);
         //return Double.compare(estTotal, other.estTotal);
     }
 

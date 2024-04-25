@@ -18,7 +18,7 @@ public class Stop implements Comparable<Stop> {
     private Collection<Edge> edges = new HashSet<Edge>();
 
     // data structure for holding a link to the lines that stop is part of   
-    private Collection<Line> lines = new HashSet<Line>();
+    private Collection<Trip> trips = new HashSet<Trip>();
 
 
 
@@ -115,15 +115,15 @@ public class Stop implements Comparable<Stop> {
      * adding a line that goes through this stop
      * @param line
      */
-    public void addLine(Line line) {
-        this.lines.add(line);
+    public void addTrip(Trip trip) {
+        this.trips.add(trip);
     }
 
     /**
      * Return the lines that this stop is on 
      */
-    public Collection<Line> getLines() {
-        return Collections.unmodifiableCollection(this.lines);
+    public Collection<Trip> getTrips() {
+        return Collections.unmodifiableCollection(this.trips);
     }
 
     //--------------------------------------------

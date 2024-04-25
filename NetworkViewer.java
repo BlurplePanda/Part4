@@ -9,13 +9,7 @@
 
 import javafx.fxml.FXML;
 import javafx.geometry.Point2D;
-import javafx.scene.control.Button;
-import javafx.scene.control.CheckBox;
-import javafx.scene.control.ChoiceBox;
-import javafx.scene.control.Label;
-import javafx.scene.control.Slider;
-import javafx.scene.control.TextArea;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
@@ -35,6 +29,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import java.sql.Time;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.Collection;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +44,9 @@ import java.util.Set;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.event.*;
+import javafx.util.converter.TimeStringConverter;
+
+import javax.swing.*;
 
 
 public class NetworkViewer {
@@ -57,6 +58,7 @@ public class NetworkViewer {
     private TextArea displayText;
     private TextField walkingDistanceTextField;
     private Slider walkingDistanceSlider;
+    private TextField startTimeTextField;
     private TextField startTextField;
     private TextField goalTextField;
 
@@ -82,6 +84,9 @@ public class NetworkViewer {
             walkingDistanceTextField = new TextField();
             walkingDistanceSlider = new Slider(0,LIMIT_WALKING_DISTANCE,0);
 
+            Label startTimeLabel = new Label("Set start time:");
+            startTimeTextField = new TextField();
+
             Label startAndGoalLabel = new Label("Start and Goal:");
             startTextField = new TextField();
             goalTextField = new TextField();
@@ -96,7 +101,8 @@ public class NetworkViewer {
             controlsGrid.add(walkingLabel,             1, 0);
             controlsGrid.add(walkingDistanceSlider,    2, 0);
             controlsGrid.add(walkingDistanceTextField, 3, 0);
-
+            controlsGrid.add(startTimeLabel, 4, 1);
+            controlsGrid.add(startTimeTextField, 5, 1);
             controlsGrid.add(startAndGoalLabel,        1, 1);
             controlsGrid.add(startTextField,           2, 1);
             controlsGrid.add(goalTextField,            3, 1);
@@ -108,7 +114,7 @@ public class NetworkViewer {
             walkingDistanceTextField.setOnAction(this::handleWalkingDistance);
             walkingDistanceSlider.setOnMouseReleased(this::handleWalkingDistanceSlider);
 
-
+            startTimeTextField.setOnAction(this::handleStartTimeAction);
             startTextField.setOnAction(this::handleStartAction);
             startTextField.setOnKeyReleased(this::handleStartGoalKey);
             goalTextField.setOnAction(this::handleGoalAction);
@@ -156,6 +162,7 @@ public class NetworkViewer {
     // Fields for the A* search
     private Stop startLocation;
     private Stop goalLocation;
+    private LocalTime startTime;
     private List<Edge> pathEdges = null;    // List of edges forming a path to be displayed 
 
 
@@ -177,13 +184,13 @@ public class NetworkViewer {
      * Then draws the map.
      */ 
     public void initialise() {
-        Path dataDir = Path.of(System.getProperty("user.dir"), "data-full");
+        Path dataDir = Path.of(System.getProperty("user.dir"), "metlink-data-2024");
         System.out.println("Loading graph from "+dataDir);
         if (loadData(dataDir)){
             reportLoad();
         } else {
             System.out.println("Loading failed; creating empty graph");
-            graph = new Graph(new HashSet<Stop>(), new HashSet<Line>());
+            graph = new Graph(new HashSet<Stop>(), new HashSet<Trip>());
         }
         drawMap(graph);
     }
@@ -318,6 +325,17 @@ public class NetworkViewer {
         event.consume();
     }
 
+    public void handleStartTimeAction(ActionEvent event) {
+        displayText.clear();
+        try {
+            startTime = LocalTime.parse(startTimeTextField.getText());
+        }
+        catch (DateTimeParseException e) {
+            displayText.setText("Time entered is invalid, please use format HH:mm:ss");
+        }
+        event.consume();
+    }
+
     /**
      * When ENTER is pressed, set the start location
      * Call shortestPath finder to get path and draw graph.
@@ -330,7 +348,7 @@ public class NetworkViewer {
         setStartLocation(graph.getFirstMatchingStop(((TextField) event.getSource()).getText()));
         
         // perform A* search and get the path edges
-        pathEdges = AStar.findShortestPath(startLocation, goalLocation);
+        pathEdges = AStar.findShortestPath(startLocation, goalLocation, startTime);
 
         drawMap(graph); // redraw the graph with the new path
         event.consume();
@@ -348,7 +366,7 @@ public class NetworkViewer {
         setGoalLocation(graph.getFirstMatchingStop(((TextField) event.getSource()).getText()));
 
         // perform A* search and get the path edges
-        pathEdges = AStar.findShortestPath( startLocation, goalLocation);
+        pathEdges = AStar.findShortestPath( startLocation, goalLocation, startTime);
 
         drawMap(graph); // redraw the graph with the new path
         event.consume();
@@ -394,7 +412,7 @@ public class NetworkViewer {
                 setGoalLocation(closestStop);
             }
                 // INFO: This is where your find path code is called during clicking
-            pathEdges = AStar.findShortestPath(startLocation, goalLocation);
+            pathEdges = AStar.findShortestPath(startLocation, goalLocation, startTime);
             drawMap(graph);
         }
         event.consume();
@@ -495,14 +513,17 @@ public class NetworkViewer {
     public boolean loadData(Path dataDirectory){ 
         // load the input files
         if (!dataDirectory.resolve("stops.txt").toFile().exists() ||
-            !dataDirectory.resolve("lines.txt").toFile().exists()){
+            !dataDirectory.resolve("routes.txt").toFile().exists() ||
+            !dataDirectory.resolve("stop_times.txt").toFile().exists() ||
+            !dataDirectory.resolve("calendar_dates.txt").toFile().exists() ||
+            !dataDirectory.resolve("trips.txt").toFile().exists()){
             System.out.println("DIRECTORY DOES NOT CONTAIN REQUIRED DATA FILES");
             return false;
         }
 
         Map<String, Stop> stopMap = loadStops(dataDirectory.resolve("stops.txt"));
-
-        Collection<Line> lines = loadLines(dataDirectory.resolve("lines.txt"), stopMap);
+        Map<String, Line> lineMap = loadLines(dataDirectory.resolve("routes.txt"));
+        Map<String, Trip> tripMap = loadTrips(dataDirectory, lineMap, stopMap);
 
         zoneData = null;
         if (dataDirectory.resolve("WellingtonZones.csv").toFile().exists()){
@@ -510,7 +531,7 @@ public class NetworkViewer {
         }
 
         // Create the graph (ie, all the edges)
-        this.graph = new Graph(stopMap.values(), lines);
+        this.graph = new Graph(stopMap.values(), tripMap.values());
 
         return true;
     }
@@ -527,72 +548,144 @@ public class NetworkViewer {
      *   key = the stop_id
      *   value = a Stop object containing the name, id, longitude, and latitude
      */
-    public static Map<String, Stop> loadStops(Path stopsFile) {
-        Map<String, Stop> stops = new HashMap<String, Stop>();
+    public static List<String[]> parseData(Path file) {
+        List<String[]> allTokens = new ArrayList<>();
 
         try {
-            List<String> dataLines = Files.readAllLines(stopsFile);
+            List<String> dataLines = Files.readAllLines(file);
             dataLines.remove(0);// throw away the top line of the file
-            for (String dataLine : dataLines){
-                // tokenise the dataLine by splitting it on tabs
-                String[] tokens = dataLine.split("\t");
-                if (tokens.length >= 6) {
-                    // process the tokens
-                    String stopId = tokens[0];
-                    String stopName = tokens[2];
-                    double lat = Double.valueOf(tokens[4]);
-                    double lon = Double.valueOf(tokens[5]);
-                    stops.put(stopId, new Stop(lon, lat, stopName, stopId));
-                }
+            for (String dataLine : dataLines) {
+                // tokenise the dataLine by splitting it on (unquoted) commas
+                // https://stackoverflow.com/a/18893443
+                String[] tokens = dataLine.split("(?x)   " +
+                        ",          " +   // Split on comma
+                        "(?=        " +   // Followed by
+                        "  (?:      " +   // Start a non-capture group
+                        "    [^\"]* " +   // 0 or more non-quote characters
+                        "    \"     " +   // 1 quote
+                        "    [^\"]* " +   // 0 or more non-quote characters
+                        "    \"     " +   // 1 quote
+                        "  )*       " +   // 0 or more repetition of non-capture group (multiple of 2 quotes will be even)
+                        "  [^\"]*   " +   // Finally 0 or more non-quotes
+                        "  $        " +   // Till the end  (This is necessary, else every comma will satisfy the condition)
+                        ")          "     // End look-ahead
+                );
+                allTokens.add(tokens);
             }
         } catch (IOException e) {
-            throw new RuntimeException("Reading the stops file failed.");
+            throw new RuntimeException("Reading the "+file.getFileName()+"file failed.");
         }
-        return stops;
+        return allTokens;
     }
 
-    /** Load the line data from the lines file
-     * File contains: line_id, stop_id, timepoint
-     * Uses the stopMap to turn the stop_id's into Stops
-     */
-    public static Collection<Line> loadLines(Path lineFile, Map<String,Stop> stopMap) {
-        if (stopMap.isEmpty()){
-            throw new RuntimeException("loadLines given an empty stopMap.");
+    public static Map<String, Stop> loadStops(Path file) {
+        Map<String, Stop> stopMap = new HashMap<>();
+        List<String[]> stopData = parseData(file);
+        for (String[] stop : stopData) {
+            if (stop.length >= 6) {
+                // process the tokens
+                String stopId = stop[0];
+                String stopName = stop[2];
+                double lat = Double.valueOf(stop[4]);
+                double lon = Double.valueOf(stop[5]);
+                stopMap.put(stopId, new Stop(lon, lat, stopName, stopId));
+            }
+            else {
+                System.out.println("Stop file has broken entry: "+stopData.indexOf(stop));
+            }
         }
-        Map<String, Line> lineMap = new HashMap<String, Line>();
-        try {
-            List<String> dataLines = Files.readAllLines(lineFile);
-            dataLines.remove(0); //throw away the top line of the file.
-            for (String dataLine : dataLines){// read in each line of the file
-                // tokenise the line by splitting it on tabs".
-                String[] tokens = dataLine.split("\t");
-                if (tokens.length >= 3) {
-                    // process the tokens
-                    String lineId = tokens[0];
-                    Line line = lineMap.get(lineId);
-                    if (line == null) {
-                        //System.out.println("Loading line: "+lineId);
-                        line = new Line(lineId);
-                        lineMap.put(lineId, line);
-                    }
-                    int time = Integer.parseInt(tokens[2]);
-                    String stopId = tokens[1];
-                    Stop stop = stopMap.get(stopId);
-                    if (stop==null){
-                        System.out.println("Line "+lineId+" has unknown stop "+stopId+" at "+time);
-                    }
-                    else {
-                        line.addStop(stop, time);
-                        stop.addLine(line);   // record that this stop is on this line
-                    }
+        return stopMap;
+    }
+
+    /**
+     * note terms "line" and "route" used interchangeably in this part of the assignment
+     * because I couldn't be bothered changing every single use of "line" lmao
+     */
+    public static Map<String, Line> loadLines(Path file) {
+        Map<String, Line> lines = new HashMap<>();
+        List<String[]> routeData = parseData(file);
+        for (String[] route : routeData) {
+            if (route.length >= 6) {
+                // process the tokens
+                String routeId = route[0];
+                String routeName = route[2];
+                int type = Integer.valueOf(route[5]);
+                String routeType;
+                if (type == 2) {
+                    routeType = "train";
+                }
+                else if (type == 3) {
+                    routeType = "bus";
+                }
+                else if (type == 4) {
+                    routeType = "ferry";
+                }
+                else if (type == 5) {
+                    routeType = "cablecar";
                 }
                 else {
-                    System.out.println("Line file has broken entry: "+dataLine);
+                    continue;
                 }
-                    
+
+                Line line = new Line(routeId, routeName, routeType);
+                lines.put(routeId, line);
             }
-        } catch (IOException e) {throw new RuntimeException("Loading the lines file failed.");}
-        return lineMap.values();
+        }
+        return lines;
+    }
+
+    public static Map<String, Trip> loadTrips(Path dir, Map<String, Line> lines, Map<String, Stop> stops) {
+        Map<String, Trip> trips = new HashMap<>();
+        List<String[]> tripData = parseData(dir.resolve("trips.txt"));
+        List<String[]> stopTimes = parseData(dir.resolve("stop_times.txt"));
+        List<String[]> calendar = parseData(dir.resolve("calendar_dates.txt"));
+        for (String[] trip : tripData) {
+            if (trip.length >= 3) {
+                // process the tokens
+                String routeId = trip[0];
+                String serviceId = trip[1];
+                String tripId = trip[2];
+
+                if (lines.get(routeId) == null) {
+                    continue;
+                }
+
+                List<Stop> tripStops = new ArrayList<>();
+                List<LocalTime> tripTimes = new ArrayList<>();
+                for (String[] stopInfo : stopTimes) {
+                    if (stopInfo[0].equals(tripId)) {
+                        tripStops.add(stops.get(stopInfo[3]));
+                        int hours = Integer.parseInt(stopInfo[2].substring(0,2));
+                        LocalTime time;
+                        if (hours >= 24) {
+                            time = LocalTime.parse(String.format("%02d%s", (hours-24), stopInfo[2].substring(2)));
+                            //days = 1;
+                        } else {
+                            time = LocalTime.parse(stopInfo[2]);
+                            //days = 0;
+                        }
+                        tripTimes.add(time);
+                    }
+                }
+
+                Set<LocalDate> dates = new HashSet<>();
+                for (String[] entry : calendar) {
+                    if (entry[0] == serviceId) {
+                        dates.add(LocalDate.parse(entry[1]));
+                    }
+                }
+
+                Trip t = new Trip(tripId, lines.get(routeId), tripStops, tripTimes, dates);
+                trips.put(tripId, t);
+                for (Stop stop : tripStops) {
+                    stop.addTrip(t);
+                }
+            }
+            else {
+                System.out.println("Trip file has broken entry: "+tripData.indexOf(trip));
+            }
+        }
+        return trips;
     }
 
     /**
@@ -600,7 +693,7 @@ public class NetworkViewer {
      */
     private void reportLoad(){
         System.out.println("Loaded "+ graph.getStops().size()+" stops");
-        System.out.println("Loaded "+ graph.getLines().size()+" lines");
+        System.out.println("Loaded "+ graph.getTrips().size()+" trips");
         System.out.println("Constructed Graph with "+ graph.getEdges().size()+" edges");
         System.out.println("---------------------");
     }
@@ -672,6 +765,7 @@ public class NetworkViewer {
      */
     public void reportPath(){
         double totalDistance = 0;
+        double totalTime = 0;
         StringBuilder pathText = new StringBuilder();
         if (startLocation!=null && goalLocation!=null){
             pathText.append("START: ").append(startLocation.getName()).append("\n");
@@ -689,11 +783,30 @@ public class NetworkViewer {
                 pathText.append("PATH:\n");
                 for (Edge edge : pathEdges){
                     totalDistance += edge.distance();
+                    totalTime += edge.time();
+                    /*try {
+                        Edge prev = pathEdges.get(pathEdges.indexOf(edge) - 1);
+                        if ((edge.trip() == null && prev.trip() != null) ||
+                             edge.trip() != null && prev.trip() == null) {
+                            totalTime += 600; //10min
+                            pathText.append("10min for transferring between lines\n");
+                        }
+                        else if ((edge.trip() != null && prev.trip() != null) &&
+                                 (edge.trip().getLine() != prev.trip().getLine())) {
+                            totalTime += 600; //10min
+                            pathText.append("10min for transferring between lines\n");
+                        }
+                    }
+                    catch (IndexOutOfBoundsException e) {
+                        totalTime += 600; //10min
+                        pathText.append("10min for transferring between lines\n");
+                    }*/
                     pathText.append("  ").append(edge.toString()).append("\n");
                 }
                 pathText.append("  ENDING AT ").append(goalLocation.getName()).append("\n");
-                pathText.append(String.format("Total path distance = %.3fkm",
+                pathText.append(String.format("Total path distance = %.3fkm\n",
                                               totalDistance/1000));
+                pathText.append(String.format("Total path time = %.2fmin", totalTime/60));
             }
         }
         displayText.setText(pathText.toString());
